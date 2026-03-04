@@ -199,6 +199,8 @@ pub const App = struct {
                         panel.navigate(self.config.show_hidden) catch {};
                     } else if (entry.is_executable) {
                         self.executeFile();
+                    } else {
+                        self.openViewer();
                     }
                 }
             },
@@ -485,7 +487,7 @@ pub const App = struct {
             var ebuf: [256]u8 = undefined;
             const msg = std.fmt.bufPrint(&ebuf, "Failed to run: {s}\r\n", .{@errorName(err)}) catch "Failed to run command\r\n";
             err_out.writeAll(msg) catch {};
-            waitForEnter();
+            waitForEnter(self.terminal.tty_fd);
             self.terminal.enableRawMode() catch {};
             self.terminal.enterAltScreen() catch {};
             self.terminal.clear();
@@ -494,7 +496,7 @@ pub const App = struct {
         };
         _ = child.wait() catch {};
 
-        waitForEnter();
+        waitForEnter(self.terminal.tty_fd);
 
         self.terminal.enableRawMode() catch {};
         self.terminal.enterAltScreen() catch {};
@@ -504,15 +506,24 @@ pub const App = struct {
         self.needs_full_redraw = true;
     }
 
-    fn waitForEnter() void {
+    fn waitForEnter(tty_fd: posix.fd_t) void {
         const out = std.fs.File.stderr();
-        out.writeAll("\r\nPress Enter to continue...") catch {};
-        const stdin = std.fs.File.stdin();
+        out.writeAll("\nPress Enter to continue...") catch {};
+        // Use raw-ish mode on tty_fd so we can read single bytes
+        const orig = posix.tcgetattr(tty_fd) catch return;
+        var raw = orig;
+        raw.lflag.ECHO = false;
+        raw.lflag.ICANON = false;
+        raw.lflag.ISIG = false;
+        raw.cc[@intFromEnum(posix.V.MIN)] = 1;
+        raw.cc[@intFromEnum(posix.V.TIME)] = 0;
+        posix.tcsetattr(tty_fd, .FLUSH, raw) catch return;
+        defer posix.tcsetattr(tty_fd, .FLUSH, orig) catch {};
         var buf: [1]u8 = undefined;
         while (true) {
-            const n = stdin.read(&buf) catch break;
+            const n = posix.read(tty_fd, &buf) catch break;
             if (n == 0) break;
-            if (buf[0] == 0x0d or buf[0] == 0x0a) break;
+            if (buf[0] == 0x0d or buf[0] == 0x0a or buf[0] == 0x03) break;
         }
     }
 
