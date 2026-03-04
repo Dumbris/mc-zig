@@ -59,6 +59,9 @@ pub const App = struct {
     theme_index: usize = 0,
     menu_id: MenuId = .left,
     menu_cursor: usize = 0,
+    cmd_buf: [1024]u8 = undefined,
+    cmd_len: usize = 0,
+    cmd_cursor: usize = 0,
 
     const PendingOp = struct {
         kind: ops.OperationKind,
@@ -168,46 +171,118 @@ pub const App = struct {
     fn handleNormalInput(self: *App, event: input_mod.InputEvent) void {
         const panel = &self.panels[self.active_panel];
         const vis_rows = self.layout.panelListingHeight();
+        const has_cmd = self.cmd_len > 0;
 
         switch (event.key) {
-            .up => panel.cursorUp(),
-            .down => panel.cursorDown(),
-            .page_up => panel.pageUp(vis_rows),
-            .page_down => panel.pageDown(vis_rows),
-            .home => panel.goHome(),
-            .end => panel.goEnd(),
-            .enter => panel.navigate(self.config.show_hidden) catch {},
-            .tab => {
-                self.panels[self.active_panel].is_active = false;
-                self.active_panel = ~self.active_panel;
-                self.panels[self.active_panel].is_active = true;
+            .up => if (!has_cmd) panel.cursorUp(),
+            .down => if (!has_cmd) panel.cursorDown(),
+            .page_up => if (!has_cmd) panel.pageUp(vis_rows),
+            .page_down => if (!has_cmd) panel.pageDown(vis_rows),
+            .home => if (has_cmd) {
+                self.cmd_cursor = 0;
+            } else panel.goHome(),
+            .end => if (has_cmd) {
+                self.cmd_cursor = self.cmd_len;
+            } else panel.goEnd(),
+            .left => if (has_cmd) {
+                if (self.cmd_cursor > 0) self.cmd_cursor -= 1;
             },
-            .insert => panel.toggleTag(),
-            .f3 => self.openViewer(),
-            .f4 => self.openEditor(),
-            .f5 => self.startCopy(),
-            .f6 => self.startMove(),
-            .shift_f6 => self.startRename(),
-            .f7 => self.startMkdir(),
-            .f8 => self.startDelete(),
+            .right => if (has_cmd) {
+                if (self.cmd_cursor < self.cmd_len) self.cmd_cursor += 1;
+            },
+            .enter => {
+                if (has_cmd) {
+                    self.executeShellCommand();
+                } else {
+                    const entry = panel.getCurrentEntry() orelse return;
+                    if (entry.kind == .directory) {
+                        panel.navigate(self.config.show_hidden) catch {};
+                    } else if (entry.is_executable) {
+                        self.executeFile();
+                    }
+                }
+            },
+            .backspace => {
+                if (has_cmd and self.cmd_cursor > 0) {
+                    const i = self.cmd_cursor;
+                    if (i < self.cmd_len) {
+                        std.mem.copyForwards(u8, self.cmd_buf[i - 1 .. self.cmd_len - 1], self.cmd_buf[i..self.cmd_len]);
+                    }
+                    self.cmd_len -= 1;
+                    self.cmd_cursor -= 1;
+                }
+            },
+            .escape => {
+                self.cmd_len = 0;
+                self.cmd_cursor = 0;
+            },
+            .tab => {
+                if (!has_cmd) {
+                    self.panels[self.active_panel].is_active = false;
+                    self.active_panel = ~self.active_panel;
+                    self.panels[self.active_panel].is_active = true;
+                }
+            },
+            .insert => if (!has_cmd) panel.toggleTag(),
+            .delete => {
+                if (has_cmd and self.cmd_cursor < self.cmd_len) {
+                    const i = self.cmd_cursor;
+                    if (i + 1 < self.cmd_len) {
+                        std.mem.copyForwards(u8, self.cmd_buf[i .. self.cmd_len - 1], self.cmd_buf[i + 1 .. self.cmd_len]);
+                    }
+                    self.cmd_len -= 1;
+                }
+            },
+            .f3 => if (!has_cmd) self.openViewer(),
+            .f4 => if (!has_cmd) self.openEditor(),
+            .f5 => if (!has_cmd) self.startCopy(),
+            .f6 => if (!has_cmd) self.startMove(),
+            .shift_f6 => if (!has_cmd) self.startRename(),
+            .f7 => if (!has_cmd) self.startMkdir(),
+            .f8 => if (!has_cmd) self.startDelete(),
             .f10 => self.running = false,
             .ctrl_o => self.togglePanels(),
+            .ctrl_c => {
+                if (has_cmd) {
+                    self.cmd_len = 0;
+                    self.cmd_cursor = 0;
+                }
+            },
             .ctrl_s => {
-                self.mode = .quick_search;
-                self.search_len = 0;
+                if (!has_cmd) {
+                    self.mode = .quick_search;
+                    self.search_len = 0;
+                }
             },
             .ctrl_r => {
-                panel.loadDirectory(self.config.show_hidden) catch {};
+                if (!has_cmd) {
+                    panel.loadDirectory(self.config.show_hidden) catch {};
+                }
             },
             .f9 => self.openMenu(.options),
             .f2 => self.openMenu(.file),
             .char => {
-                if (event.char == 'q' or event.char == 'Q') {
-                    self.running = false;
-                } else if (event.char == '.') {
-                    self.config.show_hidden = !self.config.show_hidden;
-                    self.panels[0].loadDirectory(self.config.show_hidden) catch {};
-                    self.panels[1].loadDirectory(self.config.show_hidden) catch {};
+                if (!has_cmd) {
+                    if (event.char == 'q' or event.char == 'Q') {
+                        self.running = false;
+                        return;
+                    } else if (event.char == '.') {
+                        self.config.show_hidden = !self.config.show_hidden;
+                        self.panels[0].loadDirectory(self.config.show_hidden) catch {};
+                        self.panels[1].loadDirectory(self.config.show_hidden) catch {};
+                        return;
+                    }
+                }
+                if (self.cmd_len < self.cmd_buf.len) {
+                    const byte: u8 = @intCast(event.char & 0xFF);
+                    if (byte >= 0x20 and byte < 0x7f) {
+                        if (self.cmd_cursor < self.cmd_len) {
+                            std.mem.copyBackwards(u8, self.cmd_buf[self.cmd_cursor + 1 .. self.cmd_len + 1], self.cmd_buf[self.cmd_cursor..self.cmd_len]);
+                        }
+                        self.cmd_buf[self.cmd_cursor] = byte;
+                        self.cmd_len += 1;
+                        self.cmd_cursor += 1;
+                    }
                 }
             },
             else => {},
@@ -372,6 +447,71 @@ pub const App = struct {
         self.terminal.enterAltScreen() catch {};
         panel.loadDirectory(self.config.show_hidden) catch {};
         self.needs_full_redraw = true;
+    }
+
+    fn executeFile(self: *App) void {
+        const panel = &self.panels[self.active_panel];
+        const entry = panel.getCurrentEntry() orelse return;
+
+        var path_buf: [std.fs.max_path_bytes]u8 = undefined;
+        const path = std.fmt.bufPrint(&path_buf, "{s}/{s}", .{ panel.getPath(), entry.getName() }) catch return;
+
+        self.runExternalCommand(&.{path}, panel.getPath());
+    }
+
+    fn executeShellCommand(self: *App) void {
+        if (self.cmd_len == 0) return;
+
+        const cmd_text = self.cmd_buf[0..self.cmd_len];
+        const cwd = self.panels[self.active_panel].getPath();
+
+        self.cmd_len = 0;
+        self.cmd_cursor = 0;
+
+        self.runExternalCommand(&.{ "/bin/sh", "-c", cmd_text }, cwd);
+    }
+
+    fn runExternalCommand(self: *App, argv: []const []const u8, cwd: []const u8) void {
+        self.terminal.leaveAltScreen() catch {};
+        self.terminal.disableRawMode();
+
+        var child = std.process.Child.init(argv, self.allocator);
+        child.stdin_behavior = .Inherit;
+        child.stdout_behavior = .Inherit;
+        child.stderr_behavior = .Inherit;
+        child.cwd = cwd;
+        child.spawn() catch |err| {
+            const err_out = std.fs.File.stderr();
+            var ebuf: [256]u8 = undefined;
+            const msg = std.fmt.bufPrint(&ebuf, "Failed to run: {s}\r\n", .{@errorName(err)}) catch "Failed to run command\r\n";
+            err_out.writeAll(msg) catch {};
+            waitForEnter();
+            self.terminal.enableRawMode() catch {};
+            self.terminal.enterAltScreen() catch {};
+            self.needs_full_redraw = true;
+            return;
+        };
+        _ = child.wait() catch {};
+
+        waitForEnter();
+
+        self.terminal.enableRawMode() catch {};
+        self.terminal.enterAltScreen() catch {};
+        self.panels[0].loadDirectory(self.config.show_hidden) catch {};
+        self.panels[1].loadDirectory(self.config.show_hidden) catch {};
+        self.needs_full_redraw = true;
+    }
+
+    fn waitForEnter() void {
+        const out = std.fs.File.stderr();
+        out.writeAll("\r\nPress Enter to continue...") catch {};
+        const stdin = std.fs.File.stdin();
+        var buf: [1]u8 = undefined;
+        while (true) {
+            const n = stdin.read(&buf) catch break;
+            if (n == 0) break;
+            if (buf[0] == 0x0d or buf[0] == 0x0a) break;
+        }
     }
 
     fn startCopy(self: *App) void {
@@ -875,7 +1015,7 @@ pub const App = struct {
         }
 
         // Command line
-        statusbar.renderCommandLine(&self.terminal, self.layout.command_row, self.panels[self.active_panel].getPath(), colors);
+        statusbar.renderCommandLine(&self.terminal, self.layout.command_row, self.panels[self.active_panel].getPath(), self.cmd_buf[0..self.cmd_len], self.cmd_cursor, colors);
 
         // Function key bar
         statusbar.renderFKeyBar(&self.terminal, self.layout.fkey_row, colors);
