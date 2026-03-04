@@ -4,6 +4,13 @@ pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
+    // Get version from git describe, fallback to build.zig.zon version
+    const version = b.option([]const u8, "version", "Override version string") orelse
+        std.mem.trimRight(u8, b.run(&.{ "git", "describe", "--tags", "--always", "--dirty" }), "\n\r ");
+
+    const build_options = b.addOptions();
+    build_options.addOption([]const u8, "version", version);
+
     const exe = b.addExecutable(.{
         .name = "mc",
         .root_module = b.createModule(.{
@@ -12,6 +19,7 @@ pub fn build(b: *std.Build) void {
             .optimize = optimize,
         }),
     });
+    exe.root_module.addOptions("build_options", build_options);
     b.installArtifact(exe);
 
     const run_cmd = b.addRunArtifact(exe);
@@ -26,6 +34,7 @@ pub fn build(b: *std.Build) void {
     const exe_tests = b.addTest(.{
         .root_module = exe.root_module,
     });
+    exe_tests.root_module.addOptions("build_options", build_options);
 
     const run_exe_tests = b.addRunArtifact(exe_tests);
     const test_step = b.step("test", "Run unit tests");

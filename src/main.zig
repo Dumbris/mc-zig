@@ -2,6 +2,9 @@ const std = @import("std");
 const posix = std.posix;
 const App = @import("app.zig").App;
 const config_mod = @import("config/config.zig");
+const build_options = @import("build_options");
+
+const version = std.mem.trimRight(u8, build_options.version, &.{ '\n', '\r' });
 
 var global_app: ?*App = null;
 
@@ -20,6 +23,47 @@ fn handleSigint(_: c_int) callconv(.c) void {
     posix.exit(0);
 }
 
+fn printHelp() void {
+    const out = std.fs.File.stdout();
+    var buf: [512]u8 = undefined;
+    const header = std.fmt.bufPrint(&buf, "mc-zig {s}\n", .{version}) catch "mc-zig\n";
+    out.writeAll(header) catch {};
+    out.writeAll(
+        \\Midnight Commander clone built in Zig
+        \\
+        \\Usage: mc [options] [left_dir] [right_dir]
+        \\
+        \\Options:
+        \\  -h, --help       Show this help message
+        \\  -v, --version    Show version
+        \\
+        \\Keyboard:
+        \\  Tab        Switch panel      F3  View file
+        \\  Enter      Enter dir/view    F4  Edit ($EDITOR)
+        \\  F2         File menu         F5  Copy
+        \\  F6         Move              F7  Mkdir
+        \\  F8         Delete            F9  Options menu
+        \\  F10        Quit              Ins Tag/untag
+        \\  Ctrl+O     Toggle console    .   Toggle hidden
+        \\  Shift+F6   Rename            Alt+key  Quick search
+        \\
+    ) catch {};
+}
+
+fn printVersion() void {
+    const out = std.fs.File.stdout();
+    var buf: [128]u8 = undefined;
+    const msg = std.fmt.bufPrint(&buf, "mc-zig {s}\n", .{version}) catch "mc-zig\n";
+    out.writeAll(msg) catch {};
+}
+
+fn printUnknownOption(arg: []const u8) void {
+    const err_out = std.fs.File.stderr();
+    var buf: [256]u8 = undefined;
+    const msg = std.fmt.bufPrint(&buf, "mc: unknown option '{s}'\nTry 'mc --help' for more information.\n", .{arg}) catch return;
+    err_out.writeAll(msg) catch {};
+}
+
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     defer _ = gpa.deinit();
@@ -29,14 +73,32 @@ pub fn main() !void {
     const args = try std.process.argsAlloc(allocator);
     defer std.process.argsFree(allocator, args);
 
+    // Handle flags before initializing the app
+    var positional_start: usize = 1;
+    for (args[1..]) |arg| {
+        if (std.mem.eql(u8, arg, "-h") or std.mem.eql(u8, arg, "--help")) {
+            printHelp();
+            return;
+        } else if (std.mem.eql(u8, arg, "-v") or std.mem.eql(u8, arg, "--version")) {
+            printVersion();
+            return;
+        } else if (arg.len > 0 and arg[0] == '-') {
+            printUnknownOption(arg);
+            posix.exit(1);
+        } else {
+            break;
+        }
+        positional_start += 1;
+    }
+
     // Get initial directories
     var left_path_buf: [std.fs.max_path_bytes]u8 = undefined;
     var right_path_buf: [std.fs.max_path_bytes]u8 = undefined;
     var cwd_buf: [std.fs.max_path_bytes]u8 = undefined;
 
     const cwd = std.fs.cwd().realpath(".", &cwd_buf) catch "/";
-    const left_path: []const u8 = if (args.len > 1) args[1] else cwd;
-    const right_path: []const u8 = if (args.len > 2) args[2] else left_path;
+    const left_path: []const u8 = if (positional_start < args.len) args[positional_start] else cwd;
+    const right_path: []const u8 = if (positional_start + 1 < args.len) args[positional_start + 1] else left_path;
 
     // Copy paths to stable buffers (safe — cwd_buf is separate from left/right buffers)
     @memcpy(left_path_buf[0..left_path.len], left_path);
