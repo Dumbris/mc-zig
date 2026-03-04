@@ -50,17 +50,31 @@ pub fn renderHintLine(term: *term_mod.Terminal, y: u16, hint: []const u8, colors
     term.writeString(0, y, display, colors.hint_fg, colors.panel_bg, false);
 }
 
-pub fn renderCommandLine(term: *term_mod.Terminal, y: u16, path: []const u8, colors: theme_mod.ThemeColors) void {
+pub fn renderCommandLine(term: *term_mod.Terminal, y: u16, path: []const u8, cmd_text: []const u8, cmd_cursor: usize, colors: theme_mod.ThemeColors) void {
     var x: u16 = 0;
     while (x < term.width) : (x += 1) {
         term.setCell(x, y, .{ .char = ' ', .fg = colors.panel_fg, .bg = 0 });
     }
 
-    // Show current path as prompt
-    const max_w = if (term.width > 3) term.width - 3 else 1;
-    const display = if (path.len > max_w) path[path.len - max_w ..] else path;
-    term.writeString(0, y, display, colors.panel_fg, 0, false);
-    term.writeString(@intCast(display.len), y, "$ ", colors.panel_fg, 0, true);
+    const prompt_suffix = "$ ";
+    const max_path_w = if (term.width > 20) term.width / 3 else 5;
+    const display_path = if (path.len > max_path_w) path[path.len - max_path_w ..] else path;
+    term.writeString(0, y, display_path, colors.panel_fg, 0, false);
+    const prompt_end: u16 = @intCast(display_path.len);
+    term.writeString(prompt_end, y, prompt_suffix, colors.panel_fg, 0, true);
+
+    const text_start: u16 = prompt_end + @as(u16, @intCast(prompt_suffix.len));
+    if (cmd_text.len > 0) {
+        const max_cmd = if (term.width > text_start) term.width - text_start else 0;
+        const display_cmd = if (cmd_text.len > max_cmd) cmd_text[0..max_cmd] else cmd_text;
+        term.writeString(text_start, y, display_cmd, colors.panel_fg, 0, false);
+    }
+
+    const cursor_x = text_start + @as(u16, @intCast(cmd_cursor));
+    if (cursor_x < term.width) {
+        const ch: u8 = if (cmd_cursor < cmd_text.len) cmd_text[cmd_cursor] else ' ';
+        term.setCell(cursor_x, y, .{ .char = ch, .fg = 0, .bg = colors.panel_fg });
+    }
 }
 
 pub fn renderMenuBar(term: *term_mod.Terminal, y: u16, colors: theme_mod.ThemeColors) void {

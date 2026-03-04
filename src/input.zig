@@ -37,6 +37,7 @@ pub const Key = enum {
     ctrl_o,
     ctrl_s,
     ctrl_r,
+    ctrl_c,
     ctrl_backslash,
     ctrl_x,
     // Character
@@ -84,7 +85,8 @@ pub const InputParser = struct {
                 self.state = .escape;
                 return null;
             },
-            0x01...0x08, 0x0a...0x0c, 0x0e...0x1a => {
+            0x03 => return InputEvent{ .key = .ctrl_c }, // Ctrl+C
+            0x01, 0x02, 0x04...0x08, 0x0a...0x0c, 0x0e...0x1a => {
                 // Ctrl+letter: ctrl_a=0x01, ctrl_b=0x02, etc
                 return switch (byte) {
                     0x0f => InputEvent{ .key = .ctrl_o }, // Ctrl+O

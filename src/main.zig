@@ -16,11 +16,9 @@ fn handleSigwinch(_: c_int) callconv(.c) void {
 }
 
 fn handleSigint(_: c_int) callconv(.c) void {
-    if (global_app) |app| {
-        app.terminal.leaveAltScreen() catch {};
-        app.terminal.disableRawMode();
-    }
-    posix.exit(0);
+    // No-op: Ctrl+C handled in input parser.
+    // During shell command execution we're out of raw mode,
+    // so SIGINT goes to the child process naturally.
 }
 
 fn printHelp() void {
@@ -131,7 +129,7 @@ pub fn main() !void {
         .flags = 0,
     };
     posix.sigaction(posix.SIG.INT, &sigint_action, null);
-    posix.sigaction(posix.SIG.TERM, &sigint_action, null);
+    // SIGTERM keeps default behavior (terminate) for clean kill
 
     // Run the application
     try app.run();
