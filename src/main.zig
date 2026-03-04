@@ -50,8 +50,7 @@ fn printHelp() void {
         "  Ins       Tag/untag\r\n" ++
         "  Ctrl+O    Toggle console\r\n" ++
         "  Shift+F6  Rename\r\n" ++
-        "  .         Toggle hidden\r\n" ++
-        "  Alt+key   Quick search\r\n"
+        "  Ctrl+H    Toggle hidden\r\n"
     ) catch {};
 }
 

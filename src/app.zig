@@ -152,6 +152,10 @@ pub const App = struct {
                             }
                         } else break;
                     }
+                    // Flush pending escape if no continuation byte arrived
+                    if (self.input_parser.flush()) |event| {
+                        self.handleInput(event);
+                    }
                 }
             }
         }
@@ -263,18 +267,12 @@ pub const App = struct {
             },
             .f9 => self.openMenu(.options),
             .f2 => self.openMenu(.file),
+            .ctrl_h => {
+                self.config.show_hidden = !self.config.show_hidden;
+                self.panels[0].loadDirectory(self.config.show_hidden) catch {};
+                self.panels[1].loadDirectory(self.config.show_hidden) catch {};
+            },
             .char => {
-                if (!has_cmd) {
-                    if (event.char == 'q' or event.char == 'Q') {
-                        self.running = false;
-                        return;
-                    } else if (event.char == '.') {
-                        self.config.show_hidden = !self.config.show_hidden;
-                        self.panels[0].loadDirectory(self.config.show_hidden) catch {};
-                        self.panels[1].loadDirectory(self.config.show_hidden) catch {};
-                        return;
-                    }
-                }
                 if (self.cmd_len < self.cmd_buf.len) {
                     const byte: u8 = @intCast(event.char & 0xFF);
                     if (byte >= 0x20 and byte < 0x7f) {

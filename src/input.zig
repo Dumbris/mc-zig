@@ -37,6 +37,7 @@ pub const Key = enum {
     ctrl_o,
     ctrl_s,
     ctrl_r,
+    ctrl_h,
     ctrl_c,
     ctrl_backslash,
     ctrl_x,
@@ -73,6 +74,16 @@ pub const InputParser = struct {
         }
     }
 
+    /// Flush pending state after a timeout (no more bytes available).
+    /// Returns .escape if the parser was waiting for an escape sequence continuation.
+    pub fn flush(self: *InputParser) ?InputEvent {
+        if (self.state == .escape) {
+            self.reset();
+            return InputEvent{ .key = .escape };
+        }
+        return null;
+    }
+
     fn reset(self: *InputParser) void {
         self.state = .ground;
         self.params = .{ 0, 0, 0, 0, 0, 0, 0, 0 };
@@ -89,6 +100,7 @@ pub const InputParser = struct {
             0x01, 0x02, 0x04...0x08, 0x0a...0x0c, 0x0e...0x1a => {
                 // Ctrl+letter: ctrl_a=0x01, ctrl_b=0x02, etc
                 return switch (byte) {
+                    0x08 => InputEvent{ .key = .ctrl_h }, // Ctrl+H
                     0x0f => InputEvent{ .key = .ctrl_o }, // Ctrl+O
                     0x13 => InputEvent{ .key = .ctrl_s }, // Ctrl+S
                     0x12 => InputEvent{ .key = .ctrl_r }, // Ctrl+R
