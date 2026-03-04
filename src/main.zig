@@ -25,28 +25,26 @@ fn handleSigint(_: c_int) callconv(.c) void {
 
 fn printHelp() void {
     const out = std.fs.File.stdout();
-    var buf: [512]u8 = undefined;
-    const header = std.fmt.bufPrint(&buf, "mc-zig {s}\n", .{version}) catch "mc-zig\n";
+    var buf: [128]u8 = undefined;
+    const header = std.fmt.bufPrint(&buf, "mc-zig {s} - Midnight Commander clone in Zig\n", .{version}) catch "mc-zig\n";
     out.writeAll(header) catch {};
     out.writeAll(
-        \\Midnight Commander clone built in Zig
-        \\
-        \\Usage: mc [options] [left_dir] [right_dir]
-        \\
-        \\Options:
-        \\  -h, --help       Show this help message
-        \\  -v, --version    Show version
-        \\
-        \\Keyboard:
-        \\  Tab        Switch panel      F3  View file
-        \\  Enter      Enter dir/view    F4  Edit ($EDITOR)
-        \\  F2         File menu         F5  Copy
-        \\  F6         Move              F7  Mkdir
-        \\  F8         Delete            F9  Options menu
-        \\  F10        Quit              Ins Tag/untag
-        \\  Ctrl+O     Toggle console    .   Toggle hidden
-        \\  Shift+F6   Rename            Alt+key  Quick search
-        \\
+        "\n" ++
+        "Usage: mc [options] [left_dir] [right_dir]\n" ++
+        "\n" ++
+        "Options:\n" ++
+        "  -h, --help       Show this help message\n" ++
+        "  -v, --version    Show version\n" ++
+        "\n" ++
+        "Keyboard:\n" ++
+        "  Tab        Switch panel       F3         View file\n" ++
+        "  Enter      Enter dir/view     F4         Edit ($EDITOR)\n" ++
+        "  F2         File menu          F5         Copy\n" ++
+        "  F6         Move               F7         Mkdir\n" ++
+        "  F8         Delete             F9         Options menu\n" ++
+        "  F10        Quit               Ins        Tag/untag\n" ++
+        "  Ctrl+O     Toggle console     .          Toggle hidden\n" ++
+        "  Shift+F6   Rename             Alt+key    Quick search\n"
     ) catch {};
 }
 
