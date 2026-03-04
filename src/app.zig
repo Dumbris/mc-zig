@@ -488,6 +488,7 @@ pub const App = struct {
             waitForEnter();
             self.terminal.enableRawMode() catch {};
             self.terminal.enterAltScreen() catch {};
+            self.terminal.clear();
             self.needs_full_redraw = true;
             return;
         };
@@ -497,6 +498,7 @@ pub const App = struct {
 
         self.terminal.enableRawMode() catch {};
         self.terminal.enterAltScreen() catch {};
+        self.terminal.clear();
         self.panels[0].loadDirectory(self.config.show_hidden) catch {};
         self.panels[1].loadDirectory(self.config.show_hidden) catch {};
         self.needs_full_redraw = true;
