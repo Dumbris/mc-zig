@@ -26,39 +26,48 @@ fn handleSigint(_: c_int) callconv(.c) void {
 fn printHelp() void {
     const out = std.fs.File.stdout();
     var buf: [128]u8 = undefined;
-    const header = std.fmt.bufPrint(&buf, "mc-zig {s} - Midnight Commander clone in Zig\n", .{version}) catch "mc-zig\n";
+    const header = std.fmt.bufPrint(&buf, "mc-zig {s}\r\n", .{version}) catch "mc-zig\r\n";
     out.writeAll(header) catch {};
     out.writeAll(
-        "\n" ++
-        "Usage: mc [options] [left_dir] [right_dir]\n" ++
-        "\n" ++
-        "Options:\n" ++
-        "  -h, --help       Show this help message\n" ++
-        "  -v, --version    Show version\n" ++
-        "\n" ++
-        "Keyboard:\n" ++
-        "  Tab        Switch panel       F3         View file\n" ++
-        "  Enter      Enter dir/view     F4         Edit ($EDITOR)\n" ++
-        "  F2         File menu          F5         Copy\n" ++
-        "  F6         Move               F7         Mkdir\n" ++
-        "  F8         Delete             F9         Options menu\n" ++
-        "  F10        Quit               Ins        Tag/untag\n" ++
-        "  Ctrl+O     Toggle console     .          Toggle hidden\n" ++
-        "  Shift+F6   Rename             Alt+key    Quick search\n"
+        "Midnight Commander clone in Zig\r\n" ++
+        "\r\n" ++
+        "Usage: mc [options] [left_dir] [right_dir]\r\n" ++
+        "\r\n" ++
+        "Options:\r\n" ++
+        "  -h, --help     Show this help\r\n" ++
+        "  -v, --version  Show version\r\n" ++
+        "\r\n" ++
+        "Keys:\r\n" ++
+        "  Tab       Switch panel\r\n" ++
+        "  Enter     Enter dir / view file\r\n" ++
+        "  F2        File menu\r\n" ++
+        "  F3        View file\r\n" ++
+        "  F4        Edit ($EDITOR)\r\n" ++
+        "  F5        Copy\r\n" ++
+        "  F6        Move\r\n" ++
+        "  F7        Mkdir\r\n" ++
+        "  F8        Delete\r\n" ++
+        "  F9        Options menu\r\n" ++
+        "  F10       Quit\r\n" ++
+        "  Ins       Tag/untag\r\n" ++
+        "  Ctrl+O    Toggle console\r\n" ++
+        "  Shift+F6  Rename\r\n" ++
+        "  .         Toggle hidden\r\n" ++
+        "  Alt+key   Quick search\r\n"
     ) catch {};
 }
 
 fn printVersion() void {
     const out = std.fs.File.stdout();
     var buf: [128]u8 = undefined;
-    const msg = std.fmt.bufPrint(&buf, "mc-zig {s}\n", .{version}) catch "mc-zig\n";
+    const msg = std.fmt.bufPrint(&buf, "mc-zig {s}\r\n", .{version}) catch "mc-zig\r\n";
     out.writeAll(msg) catch {};
 }
 
 fn printUnknownOption(arg: []const u8) void {
     const err_out = std.fs.File.stderr();
     var buf: [256]u8 = undefined;
-    const msg = std.fmt.bufPrint(&buf, "mc: unknown option '{s}'\nTry 'mc --help' for more information.\n", .{arg}) catch return;
+    const msg = std.fmt.bufPrint(&buf, "mc: unknown option '{s}'\r\nTry 'mc --help' for more information.\r\n", .{arg}) catch return;
     err_out.writeAll(msg) catch {};
 }
 
