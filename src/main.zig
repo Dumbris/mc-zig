@@ -129,7 +129,7 @@ pub fn main() !void {
         .flags = 0,
     };
     posix.sigaction(posix.SIG.INT, &sigint_action, null);
-    posix.sigaction(posix.SIG.TERM, &sigint_action, null);
+    // SIGTERM keeps default behavior (terminate) for clean kill
 
     // Run the application
     try app.run();
